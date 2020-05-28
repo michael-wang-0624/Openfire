@@ -257,13 +257,14 @@ public class PresenceUpdateHandler extends BasicModule implements ChannelHandler
                     }
                 }
             }
-            if (session.canFloodOfflineMessages()) {
+            //取消登陆推送离线消息
+           /* if (session.canFloodOfflineMessages()) {
                 // deliver offline messages if any
                 Collection<OfflineMessage> messages = messageStore.getMessages(username, true);
                 for (Message message : messages) {
                     session.process(message);
                 }
-            }
+            }*/
         }
     }
 

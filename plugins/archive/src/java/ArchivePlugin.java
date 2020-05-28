@@ -1,17 +1,23 @@
 import org.dom4j.Element;
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.SessionManager;
 import org.jivesoftware.openfire.container.Plugin;
 import org.jivesoftware.openfire.container.PluginManager;
 import org.jivesoftware.openfire.interceptor.InterceptorManager;
 import org.jivesoftware.openfire.interceptor.PacketInterceptor;
 import org.jivesoftware.openfire.interceptor.PacketRejectedException;
 import org.jivesoftware.openfire.session.Session;
-import org.jsmpp.bean.OptionalParameter;
+import org.jivesoftware.util.JiveGlobals;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xmpp.packet.Message;
 import org.xmpp.packet.Packet;
 
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.Response;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -19,6 +25,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.concurrent.Future;
 
 /**
  * @Author swang
@@ -31,12 +38,18 @@ public class ArchivePlugin implements Plugin,PacketInterceptor {
         " values (?,?,?,?,?,?,?,?,?,?,? )";
     private static String SAVE_LAST = "replace into ofMessageLast (`mix_id`,`from`,`to`,`message_id`,`created`) values (?,?,?,?,?)";
     private InterceptorManager interceptoerManager;
+    private SessionManager sessionManager;
+    private Client client ;
+    private static String DFEALT_URL = "https://api.xms.zblzm.xyz/home/users/{userTo}/push-notification";
+    private static String url= JiveGlobals.getProperty("push.url",DFEALT_URL);
+    boolean debug = JiveGlobals.getBooleanProperty("plugin.isDebug", false);
 
     @Override
     public void initializePlugin(PluginManager manager, File pluginDirectory) {
         interceptoerManager = InterceptorManager.getInstance();
         interceptoerManager.addInterceptor(this);
-
+        sessionManager = SessionManager.getInstance();
+        client = ClientBuilder.newClient();
 
     }
 
@@ -54,6 +67,7 @@ public class ArchivePlugin implements Plugin,PacketInterceptor {
             ) {
 
             Message msg = (Message) packet;
+            log.info(msg.toXML());
             Element mediaEl = msg.getChildElement("media", "");
             String  media = "text";
             if(mediaEl != null) {
@@ -106,13 +120,36 @@ public class ArchivePlugin implements Plugin,PacketInterceptor {
                 Element fileNameEl = msg.getChildElement("filename", "");
                 fileName = fileNameEl == null ?  "" : fileNameEl.getTextTrim();
             }
-
             String mixId = String.valueOf(getMixId(fromId,toId));
-
             saveMessage(mixId,fromId,toId,messageId,media,body,link,fileName,len,created,data);
             saveMessageLast(mixId,messageId,fromId,toId,created);
+            //判断是否需要离线推送
+
+            boolean isPush = sessionManager.getActiveSessionCount(packet.getTo().getNode())>0 ;
+            if(!isPush) {
+                WebTarget target = client.target(DFEALT_URL).resolveTemplate("userTo",packet.getTo().getNode());
+                MessageData messageData = new MessageData(fromId, media, body);
+                /*Future<Response> responseFuture  = */
+                target.request()
+                    .header("Content-Type","application/json")
+
+                    .header("Authorization","Bearer IM_E10ADC3949BA59ABBE56E057F20F883E")
+                    .async()
+                    .post(Entity.json(new MessagePush(messageData)))
+                ;
+               /* if (debug) {
+                    try {
+                        Response response = responseFuture.get();
+                        log.info("got response status url='{}' status='{}'", target, response.getStatus());
+                    } catch (Exception e) {
+                        log.info("can't get response status url='{}'", target, e);
+                    }
+                }*/
+            }
         }
     }
+    
+    
 
     private void saveMessageLast(String mixId,String messageId,int from,int to,long created) {
         Connection con = null;

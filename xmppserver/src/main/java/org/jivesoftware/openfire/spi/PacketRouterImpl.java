@@ -77,7 +77,7 @@ public class PacketRouterImpl extends BasicModule implements PacketRouter {
     @Override
     public void route(Message packet) {
         messageRouter.route(packet);
-    }
+}
 
     @Override
     public void route(Presence packet) {

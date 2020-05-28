@@ -910,8 +910,17 @@ public class RoutingTableImpl extends BasicModule implements RoutingTable, Clust
                             if (clientRoute == null) {
                                 clientRoute = anonymousUsersCache.get(jid);
                             }
-                            if (clientRoute != null && (clientRoute.isAvailable() ||
-                                    presenceUpdateHandler.hasDirectPresence(new JID(jid), requester))) {
+                            if (clientRoute != null ){
+                                if(!clientRoute.isAvailable()) {
+                                    Presence presence = new Presence();
+                                    Element prior = presence.getElement().addElement("priority");
+                                    prior.setText("50");
+                                    ClientSession session = XMPPServer.getInstance().getSessionManager().getSession(new JID(jid));
+                                    if(session!=null) {
+                                        session.setInitialized(true);
+                                        session.setPresence(presence);
+                                    }
+                                }
                                 jids.add(new JID(jid));
                             }
                         }

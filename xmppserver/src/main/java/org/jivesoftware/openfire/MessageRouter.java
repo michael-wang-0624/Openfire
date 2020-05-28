@@ -16,6 +16,7 @@
 
 package org.jivesoftware.openfire;
 
+import org.dom4j.Element;
 import org.dom4j.QName;
 import org.jivesoftware.openfire.carbons.Sent;
 import org.jivesoftware.openfire.container.BasicModule;
@@ -29,10 +30,7 @@ import org.jivesoftware.openfire.user.UserManager;
 import org.jivesoftware.util.JiveGlobals;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xmpp.packet.JID;
-import org.xmpp.packet.Message;
-import org.xmpp.packet.Packet;
-import org.xmpp.packet.PacketError;
+import org.xmpp.packet.*;
 
 import java.util.List;
 import java.util.StringTokenizer;
@@ -83,6 +81,16 @@ public class MessageRouter extends BasicModule {
             throw new NullPointerException();
         }
         ClientSession session = sessionManager.getSession(packet.getFrom());
+        if(session !=null) {
+            boolean isAvalible = session.getPresence().isAvailable();
+            if(!isAvalible) {
+                Presence presence = new Presence();
+                Element prior = presence.getElement().addElement("priority");
+                prior.setText("50");
+                session.setInitialized(true);
+                session.setPresence(presence);
+            }
+        }
 
         try {
             // Invoke the interceptors before we process the read packet
