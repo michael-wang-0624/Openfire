@@ -24,6 +24,6 @@ public class HttpServicePlugin implements Plugin {
 
     @Override
     public void destroyPlugin() {
-        vertx.undeploy(result);
+
     }
 }

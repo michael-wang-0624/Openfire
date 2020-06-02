@@ -12,5 +12,8 @@ public class MessageLast {
     String messageId;
     Long created;
     String profile;
+    Integer unReadCount;
+    String avatar;
+    String name;
 
 }

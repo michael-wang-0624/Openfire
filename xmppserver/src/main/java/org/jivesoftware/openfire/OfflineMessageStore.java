@@ -63,8 +63,8 @@ public class OfflineMessageStore extends BasicModule implements UserEventListene
     private static final Logger Log = LoggerFactory.getLogger(OfflineMessageStore.class);
 
     private static final String INSERT_OFFLINE =
-        "INSERT INTO ofOffline (username, messageID, creationDate, messageSize, stanza) " +
-        "VALUES (?, ?, ?, ?, ?)";
+        "INSERT INTO ofOffline (username, messageID, creationDate, messageSize, stanza,mixId) " +
+        "VALUES (?, ?, ?, ?, ?,?)";
     private static final String LOAD_OFFLINE =
         "SELECT stanza, creationDate FROM ofOffline WHERE username=? ORDER BY creationDate ASC";
     private static final String LOAD_OFFLINE_MESSAGE =
@@ -161,6 +161,8 @@ public class OfflineMessageStore extends BasicModule implements UserEventListene
             pstmt.setString(3, StringUtils.dateToMillis(new java.util.Date()));
             pstmt.setInt(4, msgXML.length());
             pstmt.setString(5, msgXML);
+            Long mixId = getMixId(Integer.valueOf(username), Integer.valueOf(message.getTo().getNode()));
+            pstmt.setString(6,String.valueOf(mixId));
             pstmt.executeUpdate();
         }
         catch (Exception e) {
@@ -178,6 +180,11 @@ public class OfflineMessageStore extends BasicModule implements UserEventListene
             sizeCache.put(username, size);
         }
         return true;
+    }
+
+    public  static  Long getMixId(int from,int to) {
+        long sum = from + to;
+        return sum * (sum+1)/2 + Math.min(from,to);
     }
 
     /**

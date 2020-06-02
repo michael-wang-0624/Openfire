@@ -226,6 +226,7 @@ public final class UserManager {
         return user;
     }
 
+
     /**
      * Deletes a user (optional operation).
      *
@@ -253,6 +254,31 @@ public final class UserManager {
         // Remove the user from cache.
         userCache.remove(user.getUsername());
     }
+
+    /**
+     * 修改头像
+     * @param username
+     * @param email
+     * @throws UserNotFoundException
+     */
+    public void   setEmail( String username, String email ) throws UserNotFoundException{
+        provider.setEmail(username,email);
+        User user = userCache.get(username);
+        if(user!=null) {
+            user.setEmail(email);
+            userCache.put(username,user);
+        }
+    }
+
+    public void setName( String username, String name ) throws UserNotFoundException{
+        provider.setName(username,name);
+        User user = userCache.get(username);
+        if(user!=null) {
+             user.setName(name);
+             userCache.put(username,user);
+        }
+    }
+
 
     /**
      * Returns the User specified by username.
@@ -324,7 +350,7 @@ public final class UserManager {
     }
 
     /**
-     * Returns the set of fields that can be used for searching for users. Each field
+     * Returns the set1` of fields that can be used for searching for users. Each field
      * returned must support wild-card and keyword searching. For example, an
      * implementation might send back the set {"Username", "Name", "Email"}. Any of
      * those three fields can then be used in a search with the

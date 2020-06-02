@@ -32,7 +32,7 @@ public interface UserProvider {
      *
      * @param username the username
      * @return the User.
-     * @throws UserNotFoundException if the User could not be loaded.
+     * @throws UserNotFoundException if the User coul1d not be loaded.
      */
     User loadUser( String username ) throws UserNotFoundException;
 

@@ -26,7 +26,9 @@ import org.jivesoftware.openfire.interceptor.PacketRejectedException;
 import org.jivesoftware.openfire.session.ClientSession;
 import org.jivesoftware.openfire.session.LocalClientSession;
 import org.jivesoftware.openfire.session.Session;
+import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserManager;
+import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.JiveGlobals;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,6 +81,19 @@ public class MessageRouter extends BasicModule {
     public void route(Message packet) {
         if (packet == null) {
             throw new NullPointerException();
+        }
+        String avatar = "";
+        String name ;
+        try {
+            User user = userManager.getUser(packet.getFrom().getNode());
+            avatar = user.getEmail()==null?"":user.getEmail();
+            name  = user.getName()==null?"":user.getName();
+            packet.addChildElement("avatar","").addText(avatar);
+            packet.addChildElement("name","").addText(name);
+
+        } catch (UserNotFoundException e) {
+
+            log.info("user 不存在", e.getMessage());
         }
         ClientSession session = sessionManager.getSession(packet.getFrom());
         if(session !=null) {

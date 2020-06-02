@@ -10,8 +10,10 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserManager;
+import org.jivesoftware.openfire.user.UserNotFoundException;
 import org.jivesoftware.util.StringUtils;
 import org.jsmpp.bean.OptionalParameter;
 import org.slf4j.Logger;
@@ -34,7 +36,8 @@ public class RestVertical extends AbstractVerticle {
     private static String queryId = "select * from ofMessage where message_id=?";
     private static String queryList = "select * from ofMessage where mix_id=? and id< ? order by id desc limit 20";
     private static String queryLastList = "select * from ofMessage where mix_id=?  order by id desc limit 20 ";
-
+    private static String queryUnRead  = "select count(*) from ofOffline  where username=? and mixId=?";
+    private static String deleteUnRead = "delete from ofOffline where username=?  ";
     private static String queryLast = "select * from ofMessageLast where `from` = ? or  `to`= ? order by created desc";
     HttpServer httpServer = null;
     private UserManager userManager;
@@ -58,13 +61,12 @@ public class RestVertical extends AbstractVerticle {
             String msgId = request.getParam("messageId");
             int from = Integer.valueOf(request.getParam("from"));
             int to = Integer.valueOf(request.getParam("to"));
-            String mixId = String.valueOf(getMixId(from, to));
             //String mixId = request.getParam("mixId");
-            List messageList = getMessageList(mixId, msgId);
+            History history= getMessageList(from,to, msgId);
             HttpServerResponse response = re.response();
             response.setChunked(true);
             AppResult result = new AppResult<List>();
-            result.setData(messageList);
+            result.setData(history);
             result.setCode(200);
             result.setMessage("操作成功");
             response.write(Json.encodePrettily(result)).setStatusCode(200).putHeader("content-type", "application/json;charset=UTF-8").end();
@@ -89,14 +91,53 @@ public class RestVertical extends AbstractVerticle {
             String uid = request.getParam("uid");
             String password = request.getParam("password");
             String name = request.getParam("name");
+            String avatar = request.getParam("avatar");
             try {
-                userManager.createUser(uid,password,name,"");
+                userManager.createUser(uid,password,name,avatar);
                 result.setCode(200);
                 result.setMessage("请求成功");
             } catch (UserAlreadyExistsException e) {
                 e.printStackTrace();
                 result.setCode(400);
                 result.setMessage("用户已经存在");
+            }
+            HttpServerResponse response = re.response();
+            response.setStatusCode(200).setChunked(true).putHeader("content-type", "application/json;charset=UTF-8").end(Json.encodePrettily(result));
+
+        });
+
+        reAtapi.route("/updateAvatar").method(HttpMethod.POST).handler(re->{
+            AppResult result = new AppResult<>();
+            HttpServerRequest request = re.request();
+            String uid = request.getParam("uid");
+            String avatar = request.getParam("avatar");
+            try {
+                userManager.setEmail(uid,avatar);
+                result.setCode(200);
+                result.setMessage("请求成功");
+            } catch (UserNotFoundException e) {
+                e.printStackTrace();
+                result.setCode(400);
+                result.setMessage("用户不存在");
+            }
+            HttpServerResponse response = re.response();
+            response.setStatusCode(200).setChunked(true).putHeader("content-type", "application/json;charset=UTF-8").end(Json.encodePrettily(result));
+
+        });
+
+        reAtapi.route("/updateName").method(HttpMethod.POST).handler(re->{
+            AppResult result = new AppResult<>();
+            HttpServerRequest request = re.request();
+            String uid = request.getParam("uid");
+            String name = request.getParam("name");
+            try {
+                userManager.setName(uid,name);
+                result.setCode(200);
+                result.setMessage("请求成功");
+            } catch (UserNotFoundException e) {
+                e.printStackTrace();
+                result.setCode(400);
+                result.setMessage("用户不存在");
             }
             HttpServerResponse response = re.response();
             response.setStatusCode(200).setChunked(true).putHeader("content-type", "application/json;charset=UTF-8").end(Json.encodePrettily(result));
@@ -122,7 +163,30 @@ public class RestVertical extends AbstractVerticle {
         return sum * (sum+1)/2 + Math.min(from,to);
     }
 
-    private List getMessageLast(Integer uid) {
+    private Integer getCountByMixId(String username,String mixId){
+        int size=0;
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            con = DbConnectionManager.getConnection();
+            pstmt  =con.prepareStatement(queryUnRead);
+            pstmt.setString(1,username);
+            pstmt.setString(2,mixId);
+            rs = pstmt.executeQuery();
+            if (rs.next()) {
+                size = rs.getInt(1);
+            }
+         }catch (SQLException e) {
+            log.error(e.getMessage(), e);
+        }
+        finally {
+            DbConnectionManager.closeConnection(rs, pstmt, con);
+        }
+        return size;
+    }
+
+    private List getMessageLast(Integer uid)  {
 
         Connection con = null;
         PreparedStatement pstmt = null;
@@ -138,11 +202,27 @@ public class RestVertical extends AbstractVerticle {
                 MessageLast messageLast = new MessageLast();
                 String mixId = rs.getString("mix_id");
                 messageLast.setCreated(rs.getLong("created"));
-                messageLast.setFrom(rs.getInt("from"));
-                messageLast.setTo(rs.getInt("to"));
+                int from = rs.getInt("from");
+                messageLast.setFrom(from);
+                int to = rs.getInt("to");
+                messageLast.setTo(to);
                 String msgId = rs.getString("message_id");
                 messageLast.setMessageId(msgId);
                 messageLast.setMixId(mixId);
+                int unReadCount = getCountByMixId(String.valueOf(uid), mixId);
+                messageLast.setUnReadCount(unReadCount);
+                String avatar ="";
+                String name = "";
+                try {
+                    User user = userManager.getUser(String.valueOf(uid.intValue() == from ? to : from));
+                    avatar = user.getEmail();
+                    name = user.getName();
+
+                } catch (UserNotFoundException e) {
+                    e.printStackTrace();
+                }
+                messageLast.setName(name);
+                messageLast.setAvatar(avatar);
                 Message msg = getMessageById(msgId);
                 String profile = "";
                 if(msg != null) {
@@ -165,8 +245,10 @@ public class RestVertical extends AbstractVerticle {
 
                 messageLasts.add(messageLast);
             }
-
-        }catch (SQLException e) {
+             pstmt = con.prepareStatement(deleteUnRead);
+             pstmt.setString(1,String.valueOf(uid));
+             pstmt.execute();
+         }catch (SQLException e) {
                 log.error(e.getMessage(), e);
             }
         finally {
@@ -200,6 +282,7 @@ public class RestVertical extends AbstractVerticle {
                 message.setFileName(rs.getString("filename"));
                 message.setData(rs.getString("data"));
                 message.setLen(rs.getInt("len"));
+                message.setLink(rs.getString("link"));
                 return  message;
 
             }
@@ -211,8 +294,20 @@ public class RestVertical extends AbstractVerticle {
         return msg;
     }
 
-    public List getMessageList(String mixId, String messageId) {
+    public History getMessageList(int from,int to, String messageId) {
+        String mixId = String.valueOf(getMixId(from, to));
 
+        History history = new History();
+        User user = null;
+        try {
+            user = userManager.getUser(String.valueOf(to));
+        } catch (UserNotFoundException e) {
+            e.printStackTrace();
+        }
+        if (user != null) {
+            history.setAvatar(user.getEmail());
+            history.setName(user.getName());
+        }
         Connection con = null;
         PreparedStatement pstmt = null;
         ResultSet rs = null;
@@ -250,7 +345,8 @@ public class RestVertical extends AbstractVerticle {
             DbConnectionManager.closeConnection(rs, pstmt, con);
         }
         Collections.reverse(results);
-        return results;
+        history.setMessages(results);
+        return history;
     }
 
     private void RsToList(ResultSet rs, ArrayList<Message> results) throws SQLException {
@@ -266,6 +362,7 @@ public class RestVertical extends AbstractVerticle {
             message.setFileName(rs.getString("filename"));
             message.setData(rs.getString("data"));
             message.setLen(rs.getInt("len"));
+            message.setLink(rs.getString("link"));
             results.add(message);
         }
     }

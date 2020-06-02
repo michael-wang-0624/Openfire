@@ -62,8 +62,9 @@ public class DefaultUserProvider implements UserProvider {
     private static final String ALL_USERS =
             "SELECT username FROM ofUser ORDER BY username";
     private static final String INSERT_USER =
-            "INSERT INTO ofUser (username,name,email,creationDate,modificationDate) " +
+        "INSERT INTO ofUser (username,name,email,creationDate,modificationDate) " +
             "VALUES (?,?,?,?,?)";
+
     private static final String DELETE_USER_FLAGS =
             "DELETE FROM ofUserFlag WHERE username=?";
     private static final String DELETE_USER_PROPS =
@@ -172,6 +173,7 @@ public class DefaultUserProvider implements UserProvider {
             return new User(username, name, email, now, now);
         }
     }
+
 
     @Override
     public void deleteUser(String username) {

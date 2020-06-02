@@ -68,6 +68,7 @@ public class User implements Cacheable, Externalizable, Result {
     private String email;
     private Date creationDate;
     private Date modificationDate;
+    private String avatar;
 
     private Map<String,String> properties = null;
 
@@ -114,10 +115,10 @@ public class User implements Cacheable, Externalizable, Result {
             throw new IllegalArgumentException("Invalid or empty name specified with provider that requires name");
         }
         this.name = name;
-        if (UserManager.getUserProvider().isEmailRequired() && (email == null || "".equals(email.trim()))) {
+     /*   if (UserManager.getUserProvider().isEmailRequired() && (email == null || "".equals(email.trim()))) {
             throw new IllegalArgumentException("Empty email address specified with provider that requires email address. User: "
                                                 + username + " Email: " + email);
-        }
+        }*/
         this.email = email;
         this.creationDate = creationDate;
         this.modificationDate = modificationDate;
@@ -259,9 +260,9 @@ public class User implements Cacheable, Externalizable, Result {
             email = null;
         }
 
-        if (UserManager.getUserProvider().isEmailRequired() && !StringUtils.isValidEmailAddress(email)) {
+     /*   if (UserManager.getUserProvider().isEmailRequired() && !StringUtils.isValidEmailAddress(email)) {
             throw new IllegalArgumentException("User provider requires email address.");
-        }
+        }*/
 
         try {
             String originalEmail= this.email;
@@ -284,9 +285,9 @@ public class User implements Cacheable, Externalizable, Result {
      *
      * @return true if email is visible to everyone, false if not.
      */
-    public boolean isEmailVisible() {
+  /*  public boolean isEmailVisible() {
         return !getProperties().containsKey(EMAIL_VISIBLE_PROPERTY) || Boolean.valueOf(getProperties().get(EMAIL_VISIBLE_PROPERTY));
-    }
+    }*/
 
     /**
      * Sets if the email is visible to everyone or not.
@@ -423,6 +424,14 @@ public class User implements Cacheable, Externalizable, Result {
         else {
             return false;
         }
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
     }
 
     /**
