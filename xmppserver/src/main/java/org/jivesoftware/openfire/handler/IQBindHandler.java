@@ -17,10 +17,7 @@
 package org.jivesoftware.openfire.handler;
 
 import org.dom4j.Element;
-import org.jivesoftware.openfire.IQHandlerInfo;
-import org.jivesoftware.openfire.RoutingTable;
-import org.jivesoftware.openfire.SessionManager;
-import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.*;
 import org.jivesoftware.openfire.auth.AuthToken;
 import org.jivesoftware.openfire.auth.UnauthorizedException;
 import org.jivesoftware.openfire.event.SessionEventDispatcher;
@@ -32,6 +29,8 @@ import org.xmpp.packet.IQ;
 import org.xmpp.packet.JID;
 import org.xmpp.packet.PacketError;
 import org.xmpp.packet.StreamError;
+
+import java.util.Random;
 
 /**
  * Binds a resource to the stream so that the client's address becomes a full JID. Once a resource
@@ -128,9 +127,15 @@ public class IQBindHandler extends IQHandler {
 
                     int conflictCount = oldSession.incrementConflictCount();
                     if (conflictCount > conflictLimit) {
-                        Log.debug( "Kick out an old connection that is conflicting with a new one. Old session: {}", oldSession );
-                        StreamError error = new StreamError(StreamError.Condition.conflict);
-                        oldSession.deliverRawText(error.toXML());
+                        Log.info( "Kick out an old connection that is conflicting with a new one. Old session: {}", oldSession );
+                        //StreamError error = new StreamError(StreamError.Condition.conflict);
+                        IQ iq = new IQ();
+                        iq.setFrom("ai");
+                        iq.setType(IQ.Type.set);
+                        iq.setID(String.valueOf(System.currentTimeMillis())+new Random().nextInt(100));
+                        iq.setChildElement("extendtype","").addText("conflict");
+                        oldSession.process(iq);
+                        //oldSession.deliverRawText(error.toXML());
                         oldSession.close();
 
                         // OF-1923: As the session is now replaced, the old session will never be resumed.

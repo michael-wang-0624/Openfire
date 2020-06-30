@@ -5,13 +5,13 @@
  **/
 public enum MediaType {
 
-    audio("音频"),
+    audio("เสียงพูด"),
 
-    video("视频"),
+    video("วีดีโอ"),
 
-    file("文件"),
+    file("ไฟล"),
 
-    picture("图片");
+    picture("ภาพ");
 //
 //    private String name;
 //
@@ -41,7 +41,7 @@ public enum MediaType {
                 return s.value;
             }
         }
-        return "文本";
+        return "ข้อความ";
     }
 
 

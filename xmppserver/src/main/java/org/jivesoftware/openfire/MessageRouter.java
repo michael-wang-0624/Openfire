@@ -18,6 +18,7 @@ package org.jivesoftware.openfire;
 
 import org.dom4j.Element;
 import org.dom4j.QName;
+import org.jivesoftware.openfire.auth.AuthToken;
 import org.jivesoftware.openfire.carbons.Sent;
 import org.jivesoftware.openfire.container.BasicModule;
 import org.jivesoftware.openfire.forward.Forwarded;
@@ -84,8 +85,13 @@ public class MessageRouter extends BasicModule {
         }
         String avatar = "";
         String name ;
+        String fromId = null;
+        Element fromEl = packet.getChildElement("fromUserId","");
+        if(fromEl!=null) {
+            fromId = fromEl.getTextTrim();
+        }
         try {
-            User user = userManager.getUser(packet.getFrom().getNode());
+            User user = userManager.getUser(fromId);
             avatar = user.getEmail()==null?"":user.getEmail();
             name  = user.getName()==null?"":user.getName();
             packet.addChildElement("avatar","").addText(avatar);
@@ -96,23 +102,33 @@ public class MessageRouter extends BasicModule {
             log.info("user 不存在", e.getMessage());
         }
         ClientSession session = sessionManager.getSession(packet.getFrom());
-        if(session !=null) {
-            boolean isAvalible = session.getPresence().isAvailable();
-            if(!isAvalible) {
-                Presence presence = new Presence();
-                Element prior = presence.getElement().addElement("priority");
-                prior.setText("50");
-                session.setInitialized(true);
-                session.setPresence(presence);
-            }
-        }
+
 
         try {
             // Invoke the interceptors before we process the read packet
             InterceptorManager.getInstance().invokeInterceptors(packet, session, true, false);
-            if (session == null || session.getStatus() == Session.STATUS_AUTHENTICATED) {
+            if (session == null || session.getStatus() == Session.STATUS_AUTHENTICATED || session.getStatus() == Session.STATUS_CONNECTED) {
                 JID recipientJID = packet.getTo();
 
+                if(session.getStatus()==Session.STATUS_CONNECTED) {
+                    LocalClientSession localClientSession = (LocalClientSession) session;
+                    AuthToken authToken = localClientSession.getAuthToken();
+                    String resource = "APP";
+
+                    localClientSession.setAuthToken(authToken,resource);
+                    packet.setFrom(fromId.concat("@ai"));
+                    log.info("status is {},packet is {}",session.getStatus(),packet.toXML());
+                }
+                if(session !=null) {
+                    boolean isAvalible = session.getPresence().isAvailable();
+                    if(!isAvalible) {
+                        Presence presence = new Presence();
+                        Element prior = presence.getElement().addElement("priority");
+                        prior.setText("50");
+                        session.setInitialized(true);
+                        session.setPresence(presence);
+                    }
+                }
                 // If the server receives a message stanza with no 'to' attribute, it MUST treat the message as if the 'to' address were the bare JID <localpart@domainpart> of the sending entity.
                 if (recipientJID == null) {
                     recipientJID = packet.getFrom().asBareJID();
@@ -188,7 +204,9 @@ public class MessageRouter extends BasicModule {
             else {
                 packet.setTo(session.getAddress());
                 packet.setFrom((JID)null);
-                packet.setError(PacketError.Condition.not_authorized);
+                    packet.setError(PacketError.Condition.not_authorized);
+                log.info("未授权的消息 {},session status {}",packet.toXML(),session.getStatus());
+
                 session.process(packet);
             }
             // Invoke the interceptors after we have processed the read packet

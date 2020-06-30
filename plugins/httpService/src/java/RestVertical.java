@@ -9,7 +9,9 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import org.jivesoftware.database.DbConnectionManager;
+import org.jivesoftware.openfire.SessionManager;
 import org.jivesoftware.openfire.XMPPServer;
+import org.jivesoftware.openfire.session.ClientSession;
 import org.jivesoftware.openfire.user.User;
 import org.jivesoftware.openfire.user.UserAlreadyExistsException;
 import org.jivesoftware.openfire.user.UserManager;
@@ -18,14 +20,13 @@ import org.jivesoftware.util.StringUtils;
 import org.jsmpp.bean.OptionalParameter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xmpp.packet.IQ;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author swang
@@ -39,12 +40,23 @@ public class RestVertical extends AbstractVerticle {
     private static String queryUnRead  = "select count(*) from ofOffline  where username=? and mixId=?";
     private static String deleteUnRead = "delete from ofOffline where username=?  ";
     private static String queryLast = "select * from ofMessageLast where `from` = ? or  `to`= ? order by created desc";
+    private static String updateFrom = "update ofMessage set `from`=? where mix_id=? and `from`=? ";
+    private static String updateTo = "update ofMessage set `to`=? where mix_id=? and `to`=? ";
+    private static String updateMixId = "update ofMessage set mix_id=? where mix_id=?";
+    private static String queryMixId= "select * from ofMessageLast where mix_id=?";
+    private static String updateLast = "update  ofMessageLast set mix_id=? ,`from`=?,`to`=? where mix_id=?";
+
+    private static String deleteMessage = "delete from ofMessage where mix_id=?";
+    private static String deleteMessageLast = "delete from ofMessageLast where  mix_id=?";
+    private static String deleteOffline = "delete from ofOffline where mixId=?";
     HttpServer httpServer = null;
     private UserManager userManager;
+    private SessionManager sessionManager;
 
     @Override
     public void start() throws Exception {
         userManager =  XMPPServer.getInstance().getUserManager();
+        sessionManager = XMPPServer.getInstance().getSessionManager();
         httpServer = vertx.createHttpServer();
         Router reAtapi =  Router.router(vertx);
         //解决跨域问题
@@ -125,6 +137,50 @@ public class RestVertical extends AbstractVerticle {
 
         });
 
+        reAtapi.route("/updateChatting").method(HttpMethod.POST).handler(re->{
+            AppResult result = new AppResult<>();
+            HttpServerRequest request = re.request();
+            int uid = Integer.valueOf(request.getParam("uid"));//当前的uid
+            int wihtUid = Integer.valueOf(request.getParam("withUid"));//客户的uid
+            int updateUid = Integer.valueOf(request.getParam("updateUid"));//需要修改客服的uid
+            String orginMixId = String.valueOf(getMixId(wihtUid, updateUid));
+            String nowMixId = String.valueOf(getMixId(uid,wihtUid));
+            updateMixIdAndChat(updateUid,uid,orginMixId,nowMixId);
+            HttpServerResponse response = re.response();
+            result.setCode(200);
+            result.setMessage("请求成功");
+            response.setStatusCode(200).setChunked(true).putHeader("content-type", "application/json;charset=UTF-8").end(Json.encodePrettily(result));
+
+        });
+
+        reAtapi.route("/deleteChatting").method(HttpMethod.POST).handler(re->{
+            AppResult result = new AppResult<>();
+            HttpServerRequest request = re.request();
+            int uid = Integer.valueOf(request.getParam("uid"));//当前的uid
+            int targetUid = Integer.valueOf(request.getParam("targetUid"));//对方的uid
+            String mixId = String.valueOf(getMixId(uid, targetUid));
+            deleteChatting(mixId);
+            Collection<ClientSession> sessions = sessionManager.getSessions(String.valueOf(targetUid));
+            if(!sessions.isEmpty()) {
+                sessions.forEach(session ->{
+                    IQ iq = new IQ();
+                    iq.setFrom(String.valueOf(targetUid).concat("@ai"));
+                    iq.setType(IQ.Type.set);
+                    iq.setID(String.valueOf(System.currentTimeMillis())+new Random().nextInt(100));
+                    iq.setChildElement("extendtype","").addText("deleteChating");
+                    session.process(iq);
+                });
+            }
+
+            HttpServerResponse response = re.response();
+            result.setCode(200);
+            result.setMessage("请求成功");
+            response.setStatusCode(200).setChunked(true).putHeader("content-type", "application/json;charset=UTF-8").end(Json.encodePrettily(result));
+
+
+
+        });
+
         reAtapi.route("/updateName").method(HttpMethod.POST).handler(re->{
             AppResult result = new AppResult<>();
             HttpServerRequest request = re.request();
@@ -144,6 +200,8 @@ public class RestVertical extends AbstractVerticle {
 
         });
 
+
+
         reAtapi.route().failureHandler(re->{
             AppResult result = new AppResult<>();
             result.setMessage("请求失败");
@@ -156,11 +214,91 @@ public class RestVertical extends AbstractVerticle {
 
     @Override
     public void stop() throws Exception {
-       httpServer.close();
+      // httpServer.close();
     }
     private    Long getMixId(int from,int to) {
         long sum = from + to;
         return sum * (sum+1)/2 + Math.min(from,to);
+    }
+
+    private void updateMixIdAndChat(int oldUid,int nowUid,String originMixId,String nowMixId) {
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        boolean abortTransaction = false;
+
+        try {
+            con = DbConnectionManager.getTransactionConnection();
+            pstmt  =con.prepareStatement(updateFrom);
+            pstmt.setInt(1,nowUid);
+            pstmt.setString(2,originMixId);
+            pstmt.setInt(3,oldUid);
+            pstmt.executeUpdate();
+            DbConnectionManager.fastcloseStmt(pstmt);
+
+            pstmt = con.prepareStatement(updateTo);
+            pstmt.setInt(1,nowUid);
+            pstmt.setString(2,originMixId);
+            pstmt.setInt(3,oldUid);
+            pstmt.executeUpdate();
+
+            DbConnectionManager.fastcloseStmt(pstmt);
+            pstmt = con.prepareStatement(updateMixId);
+            pstmt.setString(1,nowMixId);
+            pstmt.setString(2,originMixId);
+            pstmt.executeUpdate();
+
+            DbConnectionManager.fastcloseStmt(pstmt);
+            pstmt = con.prepareStatement(queryMixId);
+            pstmt.setString(1,originMixId);
+            rs = pstmt.executeQuery();
+            if(rs.next()){
+                String mix_id = rs.getString("mix_id");
+                int from = rs.getInt("from");
+                int to = rs.getInt("to");
+                DbConnectionManager.fastcloseStmt(pstmt);
+                pstmt = con.prepareStatement(updateLast);
+                pstmt.setString(1,nowMixId);
+                pstmt.setInt(2,from==oldUid? nowUid:from);
+                pstmt.setInt(3,to==oldUid? nowUid:to);
+                pstmt.setString(4,mix_id);
+                pstmt.executeUpdate();
+            }
+
+        }catch (SQLException e) {
+            log.error(e.getMessage(), e);
+            abortTransaction = true;
+        }
+        finally {
+            DbConnectionManager.closeStatement(pstmt);
+            DbConnectionManager.closeTransactionConnection(con, abortTransaction);
+
+        }
+
+    }
+
+    private void deleteChatting(String mixId) {
+        Connection con = null;
+        PreparedStatement pstmt = null;
+        try {
+            con = DbConnectionManager.getConnection();
+            pstmt  =con.prepareStatement(deleteMessage);
+            pstmt.setString(1,mixId);
+            pstmt.executeUpdate();
+            pstmt.clearParameters();
+            pstmt = con.prepareStatement(deleteMessageLast);
+            pstmt.setString(1,mixId);
+            pstmt.executeUpdate();
+            pstmt.clearParameters();
+            pstmt = con.prepareStatement(deleteOffline);
+            pstmt.setString(1,mixId);
+            pstmt.executeUpdate();
+        }catch (SQLException e) {
+            log.error(e.getMessage(), e);
+        }
+        finally {
+            DbConnectionManager.closeConnection( pstmt, con);
+        }
     }
 
     private Integer getCountByMixId(String username,String mixId){

@@ -161,7 +161,7 @@ public class OfflineMessageStore extends BasicModule implements UserEventListene
             pstmt.setString(3, StringUtils.dateToMillis(new java.util.Date()));
             pstmt.setInt(4, msgXML.length());
             pstmt.setString(5, msgXML);
-            Long mixId = getMixId(Integer.valueOf(username), Integer.valueOf(message.getTo().getNode()));
+            Long mixId = getMixId(Integer.valueOf(message.getFrom().getNode()), Integer.valueOf(message.getTo().getNode()));
             pstmt.setString(6,String.valueOf(mixId));
             pstmt.executeUpdate();
         }

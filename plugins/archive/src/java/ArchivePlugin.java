@@ -73,11 +73,15 @@ public class ArchivePlugin implements Plugin,PacketInterceptor {
             if(mediaEl != null) {
                 media = mediaEl.getTextTrim();
             }
-            Integer fromId;
-            Integer toId;
+             Integer toId;
+            Integer fromId = null;
+            Element fromEl = msg.getChildElement("fromUserId","");
+
             try {
-                 fromId = Integer.valueOf(msg.getFrom().getNode());
-                 toId = Integer.valueOf(msg.getTo().getNode());
+                if(fromEl!=null) {
+                    fromId = Integer.valueOf(fromEl.getTextTrim());
+                }
+                toId = Integer.valueOf(msg.getTo().getNode());
             } catch (Exception e) {
                 log.error("发送人不是数字类型",e.getMessage());
                 return;

@@ -24,6 +24,11 @@ public class HttpServicePlugin implements Plugin {
 
     @Override
     public void destroyPlugin() {
+        try{
+            vertx.undeploy(result);
 
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

@@ -137,7 +137,7 @@ public abstract class LocalSession implements Session {
 
     /**
      * Returns true if the session is detached (that is, if the underlying connection
-     * has been closed.
+     *      * has been closed.
      *
      * @return true if session detached
      */
