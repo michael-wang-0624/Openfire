@@ -1,3 +1,4 @@
+import org.directwebremoting.json.types.JsonObject;
 import org.dom4j.Element;
 import org.jivesoftware.database.DbConnectionManager;
 import org.jivesoftware.openfire.SessionManager;
@@ -67,7 +68,12 @@ public class ArchivePlugin implements Plugin,PacketInterceptor {
             ) {
 
             Message msg = (Message) packet;
-            log.info(msg.toXML());
+            Element delay = msg.getChildElement("delay", "urn:xmpp:delay");
+            if(delay != null) {
+                return;
+            }
+            log.info("存储消息：{}",msg.toXML());
+
             Element mediaEl = msg.getChildElement("media", "");
             String  media = "text";
             if(mediaEl != null) {
@@ -80,6 +86,8 @@ public class ArchivePlugin implements Plugin,PacketInterceptor {
             try {
                 if(fromEl!=null) {
                     fromId = Integer.valueOf(fromEl.getTextTrim());
+                } else {
+                    fromId = Integer.valueOf(msg.getFrom().getNode());
                 }
                 toId = Integer.valueOf(msg.getTo().getNode());
             } catch (Exception e) {
@@ -112,13 +120,12 @@ public class ArchivePlugin implements Plugin,PacketInterceptor {
             int len = 0;
             String fileName = null;
 
+
             if(media != null ) {
                 Element linkEl = msg.getChildElement("link", "");
                 link = linkEl== null? "" :linkEl.getTextTrim();
                 Element dataEl = msg.getChildElement("data", "urn:xmpp:bob");
                 data = dataEl == null? "":dataEl.getTextTrim();
-                Element htmlEl = msg.getChildElement("html", "");
-                //html  = htmlEl== null? "":htmlEl.getTextTrim();
                 Element lenEl = msg.getChildElement("len", "");
                 len = lenEl == null ?  0 :  Integer.valueOf(lenEl.getTextTrim());
                 Element fileNameEl = msg.getChildElement("filename", "");
@@ -129,15 +136,16 @@ public class ArchivePlugin implements Plugin,PacketInterceptor {
             saveMessageLast(mixId,messageId,fromId,toId,created);
             //判断是否需要离线推送
 
-            boolean isPush = sessionManager.getActiveSessionCount(packet.getTo().getNode())>0 ;
-            if(!isPush) {
-                WebTarget target = client.target(DFEALT_URL).resolveTemplate("userTo",packet.getTo().getNode());
+            //boolean isPush = sessionManager.getActiveSessionCount(packet.getTo().getNode())>0 ;
+            //if(!isPush) {
+                WebTarget target = client.target(url).resolveTemplate("userTo",packet.getTo().getNode());
                 MessageData messageData = new MessageData(fromId, media, body);
+                log.info("msg:{},url:{}",body,target.getUri().toString());
                 /*Future<Response> responseFuture  = */
                 target.request()
                     .header("Content-Type","application/json")
 
-                    .header("Authorization","Bearer IM_E10ADC3949BA59ABBE56E057F20F883E")
+                    .header("Authorization","Bearer IM_1E0ADC3949BA59ABBE56E057F20F883E")
                     .async()
                     .post(Entity.json(new MessagePush(messageData)))
                 ;
@@ -149,7 +157,7 @@ public class ArchivePlugin implements Plugin,PacketInterceptor {
                         log.info("can't get response status url='{}'", target, e);
                     }
                 }*/
-            }
+            //}
         }
     }
     

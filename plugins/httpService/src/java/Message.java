@@ -18,6 +18,6 @@ public class Message {
     Integer len;
     Long created;
     String data="";
-
+    Integer deleteById = 0;
 
 }

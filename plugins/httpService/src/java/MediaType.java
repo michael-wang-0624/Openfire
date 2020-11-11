@@ -11,6 +11,8 @@ public enum MediaType {
 
     file("ไฟล"),
 
+    location("ตำแหน่ง"),
+
     picture("ภาพ");
 //
 //    private String name;

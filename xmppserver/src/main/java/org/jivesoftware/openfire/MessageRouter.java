@@ -90,17 +90,21 @@ public class MessageRouter extends BasicModule {
         if(fromEl!=null) {
             fromId = fromEl.getTextTrim();
         }
-        try {
-            User user = userManager.getUser(fromId);
-            avatar = user.getEmail()==null?"":user.getEmail();
-            name  = user.getName()==null?"":user.getName();
-            packet.addChildElement("avatar","").addText(avatar);
-            packet.addChildElement("name","").addText(name);
+        Element delay = packet.getChildElement("delay", "urn:xmpp:delay");
+        if(delay == null) {
+            try {
+                User user = userManager.getUser(fromId);
+                avatar = user.getEmail()==null?"":user.getEmail();
+                name  = user.getName()==null?"":user.getName();
+                packet.addChildElement("avatar","").addText(avatar);
+                packet.addChildElement("name","").addText(name);
 
-        } catch (UserNotFoundException e) {
+            } catch (UserNotFoundException e) {
 
-            log.info("user 不存在", e.getMessage());
+                log.info("user 不存在", e.getMessage());
+            }
         }
+
         ClientSession session = sessionManager.getSession(packet.getFrom());
 
 

@@ -95,6 +95,7 @@
         <module>openfire-plugin-assembly-descriptor</module>
         <module>archive</module>
         <module>httpService</module>
+        <module>receipt</module>
     </modules>
 
     <organization>
